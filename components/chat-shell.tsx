@@ -47,7 +47,7 @@ function toDisplayText(content: Message["content"]): string {
   }
 
   if (Array.isArray(content)) {
-    return content
+    return (content as unknown[])
       .map((part) => {
         if (typeof part === "string") {
           return part;
