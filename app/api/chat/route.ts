@@ -125,14 +125,67 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
 
     if (upstream.ok && upstream.body) {
-      return new Response(upstream.body, {
-        status: 200,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
+      // Parse SSE stream and extract response from mix processing
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+      
+      return new Response(
+        new ReadableStream({
+          async start(controller) {
+            try {
+              let buffer = "";
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines[lines.length - 1];
+                
+                for (let i = 0; i < lines.length - 1; i++) {
+                  const line = lines[i].trim();
+                  
+                  if (line.startsWith("data: ")) {
+                    try {
+                      const jsonStr = line.slice(6);
+                      const data = JSON.parse(jsonStr);
+                      
+                      // Extract response from mix processing final output
+                      if (data.ops) {
+                        for (const op of data.ops) {
+                          if (op.path === "/logs/mix_processing/final_output" && op.value?.parallel_outputs?.mix?.response) {
+                            const response = op.value.parallel_outputs.mix.response;
+                            controller.enqueue(encoder.encode(response));
+                            controller.close();
+                            return;
+                          }
+                        }
+                      }
+                    } catch {
+                      // Skip lines that aren't valid JSON
+                    }
+                  }
+                }
+              }
+              
+              // If we got here without finding a response, close the stream
+              controller.close();
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+          },
+        }
+      );
     }
 
     const fallbackText = await fetchFallbackResponse(message, conversationId);
