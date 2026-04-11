@@ -61,14 +61,20 @@ function latestUserMessage(messages: IncomingMessage[]): string {
 }
 
 async function fetchFallbackResponse(message: string, conversationId: string): Promise<string> {
-  const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
+  const response = await fetch(`${BACKEND_API_URL}/mhc/invoke`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      message,
-      conversation_id: conversationId,
+      input: {
+        user_message: message,
+      },
+      config: {
+        configurable: {
+          session_id: conversationId,
+        },
+      },
     }),
     cache: "no-store",
   });
@@ -79,12 +85,14 @@ async function fetchFallbackResponse(message: string, conversationId: string): P
   }
 
   const payload = (await response.json()) as {
-    final_response?: {
-      response?: string;
+    output?: {
+      final_response?: {
+        response?: string;
+      };
     };
   };
 
-  return payload.final_response?.response?.trim() || "I ran into an issue generating a response.";
+  return payload.output?.final_response?.response?.trim() || "I ran into an issue generating a response.";
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -98,14 +106,20 @@ export async function POST(request: NextRequest): Promise<Response> {
       return new Response("Please provide a message.", { status: 400 });
     }
 
-    const upstream = await fetch(`${BACKEND_API_URL}/api/chat/stream`, {
+    const upstream = await fetch(`${BACKEND_API_URL}/mhc/stream_log`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        message,
-        conversation_id: conversationId,
+        input: {
+          user_message: message,
+        },
+        config: {
+          configurable: {
+            session_id: conversationId,
+          },
+        },
       }),
       cache: "no-store",
     });
