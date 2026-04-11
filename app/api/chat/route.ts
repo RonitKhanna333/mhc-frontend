@@ -122,6 +122,9 @@ export async function POST(request: NextRequest): Promise<Response> {
         },
       }),
       cache: "no-store",
+    }).catch((err) => {
+      console.error("Fetch failed:", err.message);
+      throw err;
     });
 
     if (upstream.ok && upstream.body) {
@@ -196,7 +199,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected error";
-    return new Response(`Chat service error: ${message}`, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Unexpected error";
+    const details = error instanceof Error ? error.stack : "";
+    console.error("Chat API error:", errorMessage, details);
+    return new Response(`Chat service error: ${errorMessage}. Backend URL: ${BACKEND_API_URL}`, { status: 500 });
   }
 }
