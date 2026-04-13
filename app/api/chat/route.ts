@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     const baseUrl = BACKEND_API_URL.replace(/\/$/, "");
-    const apiUrl = "${baseUrl}/chat";
+    const apiUrl = `${baseUrl}/chat`;
 
     const upstream = await fetch(apiUrl, {
       method: "POST",
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (!upstream.ok) {
       const errText = await upstream.text();
       console.error("Backend error:", errText);
-      throw new Error("Backend returned ${upstream.status}");
+      throw new Error(`Backend returned ${upstream.status}`);
     }
 
     const payload = await upstream.json();
@@ -88,6 +88,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
   } catch (error: any) {
     console.error("Chat API Route Error:", error.message);
-    return new Response("Chat service error: ${error.message}", { status: 500 });
+    return new Response(`Chat service error: ${error.message}`, { status: 500 });
   }
 }
