@@ -10,16 +10,13 @@ export const runtime = "nodejs";
 const AGENT_CONFIG = {
   agentId: process.env.BEDROCK_AGENT_ID!,
   agentAliasId: process.env.BEDROCK_AGENT_ALIAS_ID!,
-  region: process.env.AWS_REGION || "us-east-1"
+  region: process.env.BEDROCK_REGION || "us-east-1"
 };
 
 // Initialize Bedrock client
+// Uses IAM role credentials automatically (no need for AWS_ACCESS_KEY_ID/SECRET)
 const bedrockClient = new BedrockAgentRuntimeClient({
-  region: AGENT_CONFIG.region,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
-  }
+  region: AGENT_CONFIG.region
 });
 
 type IncomingMessage = {
