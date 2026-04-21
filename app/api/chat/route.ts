@@ -84,6 +84,13 @@ function latestUserMessage(messages: IncomingMessage[]): string {
 
 async function invokeBedrockAgent(prompt: string, sessionId: string): Promise<string> {
   try {
+    console.log("[Bedrock] Invoking agent with:", {
+      agentId: AGENT_CONFIG.agentId?.substring(0, 10) + "...",
+      agentAliasId: AGENT_CONFIG.agentAliasId?.substring(0, 10) + "...",
+      sessionId,
+      promptLength: prompt.length
+    });
+
     const command = new InvokeAgentCommand({
       agentId: AGENT_CONFIG.agentId,
       agentAliasId: AGENT_CONFIG.agentAliasId,
@@ -93,6 +100,8 @@ async function invokeBedrockAgent(prompt: string, sessionId: string): Promise<st
 
     let completion = "";
     const response = await bedrockClient.send(command);
+
+    console.log("[Bedrock] Response received, completion stream available:", !!response.completion);
 
     if (!response.completion) {
       throw new Error("No completion received from Bedrock agent");
@@ -107,26 +116,44 @@ async function invokeBedrockAgent(prompt: string, sessionId: string): Promise<st
       }
     }
 
+    console.log("[Bedrock] Completion received, length:", completion.length);
     return completion.trim() || "I ran into an issue generating a response.";
   } catch (error: any) {
-    console.error("Bedrock Agent Error:", error);
+    console.error("[Bedrock] Agent Error:", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      statusCode: error.$metadata?.httpStatusCode,
+      requestId: error.$metadata?.requestId
+    });
     throw new Error(`Failed to invoke Bedrock agent: ${error.message}`);
   }
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
+    console.log("[API] Received chat request");
+    
     const body = (await request.json()) as IncomingBody;
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const conversationId = body.conversation_id ?? body.conversationId ?? `web_session_${Date.now()}`;
 
     const message = latestUserMessage(messages);
     if (!message) {
+      console.warn("[API] No message provided");
       return new Response("Please provide a message", { status: 400 });
     }
 
+    console.log("[API] Processing message:", {
+      conversationId,
+      messageLength: message.length,
+      firstChars: message.substring(0, 50)
+    });
+
     // Call Bedrock agent directly
     const responseText = await invokeBedrockAgent(message, conversationId);
+
+    console.log("[API] Response generated successfully, length:", responseText.length);
 
     return new Response(responseText, {
       status: 200,
@@ -135,7 +162,11 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
     });
   } catch (error: any) {
-    console.error("Chat API Route Error:", error.message);
+    console.error("[API] Route Error:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack?.split("\n").slice(0, 3).join(" | ")
+    });
     return new Response(`Chat service error: ${error.message}`, { status: 500 });
   }
 }
