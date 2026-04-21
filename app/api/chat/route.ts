@@ -14,9 +14,12 @@ const AGENT_CONFIG = {
 };
 
 // Initialize Bedrock client
-// Uses IAM role credentials automatically (no need for AWS_ACCESS_KEY_ID/SECRET)
 const bedrockClient = new BedrockAgentRuntimeClient({
-  region: AGENT_CONFIG.region
+  region: AGENT_CONFIG.region,
+  credentials: {
+    accessKeyId: process.env.BEDROCK_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.BEDROCK_SECRET_ACCESS_KEY!
+  }
 });
 
 type IncomingMessage = {
