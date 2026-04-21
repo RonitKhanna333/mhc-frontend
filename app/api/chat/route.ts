@@ -6,10 +6,29 @@ import {
 
 export const runtime = "nodejs";
 
+// Validate required environment variables
+const requiredEnvVars = {
+  BEDROCK_AGENT_ID: process.env.BEDROCK_AGENT_ID,
+  BEDROCK_AGENT_ALIAS_ID: process.env.BEDROCK_AGENT_ALIAS_ID,
+  BEDROCK_ACCESS_KEY_ID: process.env.BEDROCK_ACCESS_KEY_ID,
+  BEDROCK_SECRET_ACCESS_KEY: process.env.BEDROCK_SECRET_ACCESS_KEY,
+};
+
+const missingEnvVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+
+if (missingEnvVars.length > 0) {
+  throw new Error(
+    `Missing required environment variables: ${missingEnvVars.join(", ")}. ` +
+    `Please configure these in Amplify environment variables.`
+  );
+}
+
 // Bedrock Agent Configuration
 const AGENT_CONFIG = {
-  agentId: process.env.BEDROCK_AGENT_ID!,
-  agentAliasId: process.env.BEDROCK_AGENT_ALIAS_ID!,
+  agentId: requiredEnvVars.BEDROCK_AGENT_ID!,
+  agentAliasId: requiredEnvVars.BEDROCK_AGENT_ALIAS_ID!,
   region: process.env.BEDROCK_REGION || "us-east-1"
 };
 
@@ -17,8 +36,8 @@ const AGENT_CONFIG = {
 const bedrockClient = new BedrockAgentRuntimeClient({
   region: AGENT_CONFIG.region,
   credentials: {
-    accessKeyId: process.env.BEDROCK_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.BEDROCK_SECRET_ACCESS_KEY!
+    accessKeyId: requiredEnvVars.BEDROCK_ACCESS_KEY_ID!,
+    secretAccessKey: requiredEnvVars.BEDROCK_SECRET_ACCESS_KEY!
   }
 });
 
