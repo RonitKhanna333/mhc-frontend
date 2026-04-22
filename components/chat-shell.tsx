@@ -47,6 +47,10 @@ function getStorageKey(userId: string): string {
   return `mhc_conv_id_${userId}`;
 }
 
+function getMessagesKey(userId: string): string {
+  return `mhc_messages_${userId}`;
+}
+
 function getOrCreateConversationId(userId: string): string {
   try {
     const stored = localStorage.getItem(getStorageKey(userId));
@@ -57,6 +61,23 @@ function getOrCreateConversationId(userId: string): string {
   } catch {
     return createConversationId();
   }
+}
+
+function loadMessages(userId: string): typeof WELCOME_MESSAGE[] {
+  try {
+    const raw = localStorage.getItem(getMessagesKey(userId));
+    if (!raw) return [WELCOME_MESSAGE];
+    const parsed = JSON.parse(raw) as typeof WELCOME_MESSAGE[];
+    return parsed.length > 0 ? parsed : [WELCOME_MESSAGE];
+  } catch {
+    return [WELCOME_MESSAGE];
+  }
+}
+
+function saveMessages(userId: string, messages: typeof WELCOME_MESSAGE[]) {
+  try {
+    localStorage.setItem(getMessagesKey(userId), JSON.stringify(messages));
+  } catch { /* quota exceeded or SSR */ }
 }
 
 function toDisplayText(content: Message["content"]): string {
@@ -115,8 +136,15 @@ function ChatShellContent({ accessToken, userId }: { accessToken: string; userId
       conversation_id: conversationId,
     },
     streamProtocol: "text",
-    initialMessages: [WELCOME_MESSAGE],
+    initialMessages: loadMessages(userId),
   });
+
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveMessages(userId, messages as typeof WELCOME_MESSAGE[]);
+    }
+  }, [messages, userId]);
 
   useEffect(() => {
     let mounted = true;
@@ -190,6 +218,7 @@ function ChatShellContent({ accessToken, userId }: { accessToken: string; userId
     const fresh = createConversationId();
     try {
       localStorage.setItem(getStorageKey(userId), fresh);
+      localStorage.removeItem(getMessagesKey(userId));
     } catch { /* ignore */ }
     setConversationId(fresh);
     setMessages([WELCOME_MESSAGE]);
