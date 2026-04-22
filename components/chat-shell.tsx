@@ -4,14 +4,16 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useChat } from "ai/react";
 import type { Message } from "ai";
 import {
-  Activity,
   CircleStop,
   HeartHandshake,
+  LogOut,
   RefreshCw,
   SendHorizontal,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { Authenticator, useAuthenticator } from "@aws-amplify/ui-react";
+import { fetchAuthSession, signOut } from "aws-amplify/auth";
 
 import MessageBubble from "@/components/message-bubble";
 
@@ -67,7 +69,7 @@ function toDisplayText(content: Message["content"]): string {
   return "";
 }
 
-export default function ChatShell() {
+function ChatShellContent({ accessToken }: { accessToken: string }) {
   const [conversationId, setConversationId] = useState<string>(createConversationId);
   const [healthState, setHealthState] = useState<HealthState>("checking");
   const [healthMessage, setHealthMessage] = useState<string>("Checking backend");
@@ -90,6 +92,9 @@ export default function ChatShell() {
     error,
   } = useChat({
     api: "/api/chat",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
     body: {
       conversation_id: conversationId,
     },
@@ -210,6 +215,10 @@ export default function ChatShell() {
               <CircleStop size={16} />
               Stop
             </button>
+            <button type="button" className="secondary-button" onClick={() => void signOut()}>
+              <LogOut size={16} />
+              Sign Out
+            </button>
           </div>
         </aside>
 
@@ -269,5 +278,34 @@ export default function ChatShell() {
         </section>
       </div>
     </div>
+  );
+}
+
+function AuthWrapper() {
+  const { authStatus } = useAuthenticator((ctx) => [ctx.authStatus]);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      fetchAuthSession()
+        .then((session: Awaited<ReturnType<typeof fetchAuthSession>>) => {
+          const token = session.tokens?.accessToken?.toString();
+          if (token) setAccessToken(token);
+        })
+        .catch(console.error);
+    } else {
+      setAccessToken(null);
+    }
+  }, [authStatus]);
+
+  if (authStatus !== "authenticated" || !accessToken) return null;
+  return <ChatShellContent accessToken={accessToken} />;
+}
+
+export default function ChatShell() {
+  return (
+    <Authenticator>
+      <AuthWrapper />
+    </Authenticator>
   );
 }

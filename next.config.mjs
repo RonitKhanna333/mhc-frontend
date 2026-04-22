@@ -11,6 +11,10 @@ const nextConfig = {
     BEDROCK_REGION: process.env.BEDROCK_REGION,
     BEDROCK_ACCESS_KEY_ID: process.env.BEDROCK_ACCESS_KEY_ID,
     BEDROCK_SECRET_ACCESS_KEY: process.env.BEDROCK_SECRET_ACCESS_KEY,
+    // NEXT_PUBLIC_ vars are embedded in the client bundle automatically,
+    // but also forwarded here so server-side code (lib/auth.ts) can read them.
+    NEXT_PUBLIC_COGNITO_USER_POOL_ID: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID,
+    NEXT_PUBLIC_COGNITO_CLIENT_ID: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID,
   }
 };
 

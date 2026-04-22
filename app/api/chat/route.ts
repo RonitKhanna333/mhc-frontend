@@ -3,6 +3,7 @@ import {
   BedrockAgentRuntimeClient, 
   InvokeAgentCommand 
 } from "@aws-sdk/client-bedrock-agent-runtime";
+import { verifyToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -130,10 +131,22 @@ async function invokeBedrockAgent(prompt: string, sessionId: string): Promise<st
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     console.log("[API] Received chat request");
-    
+
+    // Verify Cognito token — returns the user's unique sub (userId)
+    let userId: string;
+    try {
+      userId = await verifyToken(request.headers.get("authorization"));
+    } catch {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const body = (await request.json()) as IncomingBody;
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const conversationId = body.conversation_id ?? body.conversationId ?? `web_session_${Date.now()}`;
+    // Combine userId + conversationId so each user gets isolated Bedrock sessions.
+    // Sanitize to only chars allowed by Bedrock: [0-9a-zA-Z._:-]
+    const rawConvId = body.conversation_id ?? body.conversationId ?? `ses-${Date.now().toString(36)}`;
+    const safeConvId = rawConvId.replace(/[^0-9a-zA-Z._:-]/g, "-");
+    const sessionId = `${userId}_${safeConvId}`.slice(0, 100);
 
     const message = latestUserMessage(messages);
     if (!message) {
@@ -142,13 +155,15 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     console.log("[API] Processing message:", {
-      conversationId,
+      userId: userId.substring(0, 8) + "...",
+      sessionId,
       messageLength: message.length,
       firstChars: message.substring(0, 50)
     });
 
-    // Call Bedrock agent directly
-    const responseText = await invokeBedrockAgent(message, conversationId);
+    // Call Bedrock agent — sessionId is per-user so Bedrock maintains
+    // separate conversation memory for each authenticated user.
+    const responseText = await invokeBedrockAgent(message, sessionId);
 
     console.log("[API] Response generated successfully, length:", responseText.length);
 

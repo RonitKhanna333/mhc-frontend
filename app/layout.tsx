@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Literata, Sora } from "next/font/google";
 
 import "./globals.css";
+import "@aws-amplify/ui-react/styles.css";
+import { ConfigureAmplify } from "@/components/configure-amplify";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -27,7 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${sora.variable} ${literata.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ConfigureAmplify />
+        {children}
+      </body>
     </html>
   );
 }
