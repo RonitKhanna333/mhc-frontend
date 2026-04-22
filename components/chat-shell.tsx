@@ -43,6 +43,22 @@ function createConversationId(): string {
   return `session_${Date.now().toString(36)}_${random}`;
 }
 
+function getStorageKey(userId: string): string {
+  return `mhc_conv_id_${userId}`;
+}
+
+function getOrCreateConversationId(userId: string): string {
+  try {
+    const stored = localStorage.getItem(getStorageKey(userId));
+    if (stored) return stored;
+    const fresh = createConversationId();
+    localStorage.setItem(getStorageKey(userId), fresh);
+    return fresh;
+  } catch {
+    return createConversationId();
+  }
+}
+
 function toDisplayText(content: Message["content"]): string {
   if (typeof content === "string") {
     return content;
@@ -69,8 +85,8 @@ function toDisplayText(content: Message["content"]): string {
   return "";
 }
 
-function ChatShellContent({ accessToken }: { accessToken: string }) {
-  const [conversationId, setConversationId] = useState<string>(createConversationId);
+function ChatShellContent({ accessToken, userId }: { accessToken: string; userId: string }) {
+  const [conversationId, setConversationId] = useState<string>(() => getOrCreateConversationId(userId));
   const [healthState, setHealthState] = useState<HealthState>("checking");
   const [healthMessage, setHealthMessage] = useState<string>("Checking backend");
 
@@ -171,7 +187,11 @@ function ChatShellContent({ accessToken }: { accessToken: string }) {
   };
 
   const resetConversation = () => {
-    setConversationId(createConversationId());
+    const fresh = createConversationId();
+    try {
+      localStorage.setItem(getStorageKey(userId), fresh);
+    } catch { /* ignore */ }
+    setConversationId(fresh);
     setMessages([WELCOME_MESSAGE]);
   };
 
@@ -284,22 +304,26 @@ function ChatShellContent({ accessToken }: { accessToken: string }) {
 function AuthWrapper() {
   const { authStatus } = useAuthenticator((ctx) => [ctx.authStatus]);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authStatus === "authenticated") {
       fetchAuthSession()
         .then((session: Awaited<ReturnType<typeof fetchAuthSession>>) => {
           const token = session.tokens?.accessToken?.toString();
+          const sub = session.tokens?.accessToken?.payload?.sub as string | undefined;
           if (token) setAccessToken(token);
+          if (sub) setUserId(sub);
         })
         .catch(console.error);
     } else {
       setAccessToken(null);
+      setUserId(null);
     }
   }, [authStatus]);
 
-  if (authStatus !== "authenticated" || !accessToken) return null;
-  return <ChatShellContent accessToken={accessToken} />;
+  if (authStatus !== "authenticated" || !accessToken || !userId) return null;
+  return <ChatShellContent accessToken={accessToken} userId={userId} />;
 }
 
 export default function ChatShell() {
