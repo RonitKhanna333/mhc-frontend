@@ -6,40 +6,26 @@ import {
 
 export const runtime = "nodejs";
 
-// Validate required environment variables
-const requiredEnvVars = {
-  BEDROCK_AGENT_ID: process.env.BEDROCK_AGENT_ID,
-  BEDROCK_AGENT_ALIAS_ID: process.env.BEDROCK_AGENT_ALIAS_ID,
-  BEDROCK_ACCESS_KEY_ID: process.env.BEDROCK_ACCESS_KEY_ID,
-  BEDROCK_SECRET_ACCESS_KEY: process.env.BEDROCK_SECRET_ACCESS_KEY,
-};
+// Build the Bedrock client on each request to pick up env vars lazily.
+// On Amplify with an IAM execution role, credentials are omitted and the
+// SDK default credential chain (IAM role / env vars) is used automatically.
+// Explicit BEDROCK_ACCESS_KEY_ID / BEDROCK_SECRET_ACCESS_KEY are still
+// supported as an override (e.g. local dev or cross-account scenarios).
+function getBedrockClient(): BedrockAgentRuntimeClient {
+  const region = process.env.BEDROCK_REGION || "us-east-1";
+  const accessKeyId = process.env.BEDROCK_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.BEDROCK_SECRET_ACCESS_KEY;
 
-const missingEnvVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
-  .map(([key]) => key);
-
-if (missingEnvVars.length > 0) {
-  throw new Error(
-    `Missing required environment variables: ${missingEnvVars.join(", ")}. ` +
-    `Please configure these in Amplify environment variables.`
-  );
-}
-
-// Bedrock Agent Configuration
-const AGENT_CONFIG = {
-  agentId: requiredEnvVars.BEDROCK_AGENT_ID!,
-  agentAliasId: requiredEnvVars.BEDROCK_AGENT_ALIAS_ID!,
-  region: process.env.BEDROCK_REGION || "us-east-1"
-};
-
-// Initialize Bedrock client
-const bedrockClient = new BedrockAgentRuntimeClient({
-  region: AGENT_CONFIG.region,
-  credentials: {
-    accessKeyId: requiredEnvVars.BEDROCK_ACCESS_KEY_ID!,
-    secretAccessKey: requiredEnvVars.BEDROCK_SECRET_ACCESS_KEY!
+  if (accessKeyId && secretAccessKey) {
+    return new BedrockAgentRuntimeClient({
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+    });
   }
-});
+
+  // No explicit credentials → rely on Amplify IAM role / default chain
+  return new BedrockAgentRuntimeClient({ region });
+}
 
 type IncomingMessage = {
   role?: string;
@@ -83,17 +69,28 @@ function latestUserMessage(messages: IncomingMessage[]): string {
 }
 
 async function invokeBedrockAgent(prompt: string, sessionId: string): Promise<string> {
+  const agentId = process.env.BEDROCK_AGENT_ID;
+  const agentAliasId = process.env.BEDROCK_AGENT_ALIAS_ID;
+
+  if (!agentId || !agentAliasId) {
+    throw new Error(
+      "Missing required environment variables: BEDROCK_AGENT_ID and/or BEDROCK_AGENT_ALIAS_ID. " +
+      "Configure these in the Amplify Console under Environment Variables."
+    );
+  }
+
   try {
     console.log("[Bedrock] Invoking agent with:", {
-      agentId: AGENT_CONFIG.agentId?.substring(0, 10) + "...",
-      agentAliasId: AGENT_CONFIG.agentAliasId?.substring(0, 10) + "...",
+      agentId: agentId.substring(0, 10) + "...",
+      agentAliasId: agentAliasId.substring(0, 10) + "...",
       sessionId,
       promptLength: prompt.length
     });
 
+    const bedrockClient = getBedrockClient();
     const command = new InvokeAgentCommand({
-      agentId: AGENT_CONFIG.agentId,
-      agentAliasId: AGENT_CONFIG.agentAliasId,
+      agentId,
+      agentAliasId,
       sessionId,
       inputText: prompt,
     });
