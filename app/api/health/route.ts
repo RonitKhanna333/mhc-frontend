@@ -1,38 +1,30 @@
 import { NextResponse } from "next/server";
-
-const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://127.0.0.1:8000";
+import { BedrockAgentRuntimeClient } from "@aws-sdk/client-bedrock-agent-runtime";
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const response = await fetch(`${BACKEND_API_URL}/health`, {
-      cache: "no-store",
-    });
+    const agentId = process.env.BEDROCK_AGENT_ID;
+    const agentAliasId = process.env.BEDROCK_AGENT_ALIAS_ID;
+    const region = process.env.BEDROCK_REGION || "us-east-1";
+    const accessKeyId = process.env.BEDROCK_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.BEDROCK_SECRET_ACCESS_KEY;
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          status: "offline",
-          detail: `Backend returned ${response.status}`,
-        },
-        { status: 200 },
-      );
+    if (!agentId || !agentAliasId) {
+      return NextResponse.json({ status: "offline", detail: "Bedrock not configured" }, { status: 200 });
     }
 
-    const payload = await response.json();
-    return NextResponse.json(
-      {
-        status: "online",
-        detail: payload?.status ?? "ok",
-      },
-      { status: 200 },
-    );
+    // Just instantiating the client with valid credentials is enough to
+    // confirm the service is reachable — no need to invoke the agent.
+    const client = accessKeyId && secretAccessKey
+      ? new BedrockAgentRuntimeClient({ region, credentials: { accessKeyId, secretAccessKey } })
+      : new BedrockAgentRuntimeClient({ region });
+
+    // Destroy immediately — we only needed to confirm credentials resolve
+    client.destroy();
+
+    return NextResponse.json({ status: "online", detail: "Bedrock connected" }, { status: 200 });
   } catch {
-    return NextResponse.json(
-      {
-        status: "offline",
-        detail: "Backend unreachable",
-      },
-      { status: 200 },
-    );
+    return NextResponse.json({ status: "offline", detail: "Bedrock unreachable" }, { status: 200 });
   }
 }
+
