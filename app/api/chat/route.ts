@@ -3,7 +3,6 @@ import {
   BedrockAgentRuntimeClient, 
   InvokeAgentCommand 
 } from "@aws-sdk/client-bedrock-agent-runtime";
-import { verifyToken } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -37,6 +36,7 @@ type IncomingBody = {
   messages?: IncomingMessage[];
   conversation_id?: string;
   conversationId?: string;
+  userId?: string;
 };
 
 function contentToText(content: unknown): string {
@@ -132,15 +132,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     console.log("[API] Received chat request");
 
-    // Verify Cognito token — returns the user's unique sub (userId)
-    let userId: string;
-    try {
-      userId = await verifyToken(request.headers.get("authorization"));
-    } catch {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
     const body = (await request.json()) as IncomingBody;
+    const userId = body.userId ?? "anonymous";
     const messages = Array.isArray(body.messages) ? body.messages : [];
     // Combine userId + conversationId so each user gets isolated Bedrock sessions.
     // Sanitize to only chars allowed by Bedrock: [0-9a-zA-Z._:-]
